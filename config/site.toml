@@ -1,0 +1,162 @@
+# Example site: the desired state of one Linux server that hosts several apps.
+# hostctl reads this file plus every config/apps/*.toml and makes the server match.
+# No secrets in config: tokens and passwords come from environment variables.
+
+[host]
+# SSH alias of the server (from ~/.ssh/config), or "local" when hostctl runs on it.
+ssh = "myserver"
+# The local network. App VMs can never reach it.
+lan_cidr = "10.0.0.0/24"
+# Members of these groups are root without a password, so hostctl keeps them empty.
+root_only_groups = ["lxd", "docker"]
+# SSH by key only, and only admin_user may log in.
+ssh_passwords = false
+admin_user = "admin"
+# systemd units kept stopped and off at boot.
+disabled_services = ["avahi-daemon.socket", "avahi-daemon.service"]
+# Units of a user's own systemd (`systemctl --user`) kept stopped and off.
+disabled_user_services = { admin = ["syncthing.service"] }
+# CPU energy/performance preference, now and at every boot.
+cpu_energy_preference = "balance_power"
+# Lock root's password: only sudo can become root.
+lock_root_password = true
+# Each network card answers ARP only for its own addresses (wired and Wi-Fi on one subnet).
+strict_arp = true
+# Past this, a user's own jobs on the host are slowed and swapped instead of killed.
+user_memory_high = { admin = "40GiB" }
+swap_file = { path = "/srv/data/swapfile", size = "64GiB" }
+
+# The storage pool every VM disk lives in. Sizes only grow.
+[lxd.pool]
+name = "tenants"
+driver = "btrfs"
+size = "1200GiB"
+
+# A separate disk for the pool and volumes (docs/data-disk.md), mounted by filesystem UUID.
+[data_disk]
+uuid = "00000000-0000-4000-8000-000000000000"
+mount = "/srv/data"
+lxd_disks = true
+
+# App VMs live in a restricted LXD project: no host folders, raw QEMU options,
+# privileged mode or networks other than their own bridges.
+[lxd.project]
+name = "apps"
+
+# Defaults for every VM; an app's [vms.<name>] can override them.
+[vm_defaults]
+image = "ubuntu:24.04"
+packages = ["docker.io", "docker-compose-v2", "docker-buildx"]
+# Drop each VM's clean caches this often, so memory goes back to the host.
+drop_caches_every = "10min"
+# Nothing logs in to a VM over SSH (hostctl uses `lxc exec`).
+disabled_services = ["ssh.socket", "ssh.service"]
+# Services no VM needs, masked so nothing starts them again.
+masked_services = [
+    "fwupd.service", "fwupd-refresh.timer", "fwupd-refresh.service",
+    "multipathd.service", "multipathd.socket",
+    "udisks2.service", "ModemManager.service",
+]
+
+# A VM that is no longer wanted: hostctl archives `keep`, then deletes the VM and its bridge.
+[retired.vms.tenants-vm]
+network = "tenantbr0"
+keep = "/srv/stacks"
+
+[firewall]
+# Docker owns FORWARD; DOCKER-USER runs first.
+forward_hook = "DOCKER-USER"
+# Destinations a VM may never reach (the LAN is added automatically).
+blocked_ipv4 = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"]
+# The only ports a VM may use on the host: DHCP and DNS.
+host_udp_ports = [53, 67]
+host_tcp_ports = [53]
+# The host refuses every inbound connection except SSH from these ranges.
+host_default_deny = true
+ssh_from_ipv4 = ["10.0.0.0/24"]
+ssh_from_ipv6 = ["fe80::/10"]
+
+# `hostctl verify` runs these from inside every VM.
+[verify]
+# Each must succeed (proving the probes work, so "blocked" results are real).
+must_reach = ["https://example.com", "tcp://1.1.1.1:443", "icmp://1.1.1.1"]
+# Each must fail: the host's own services, the router, other LAN devices.
+must_not_reach = [
+  "http://10.0.0.254:8420",
+  "http://10.0.0.1",
+  "tcp://10.0.0.254:22",
+  "tcp://10.0.0.20:22",
+]
+# URLs that must answer 2xx from the internet; app files add their own.
+public = []
+
+# Cloudflare: DNS for the domains, and Tunnels that carry public traffic in.
+# The API token comes from HOSTCTL_CLOUDFLARE_TOKEN; without it, tunnels are skipped.
+[cloudflare]
+account_id = "0123456789abcdef0123456789abcdef"
+zones = ["example.com", "example.org"]
+dnssec = true
+connector_image = "cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c"
+
+# Applied to every zone.
+[cloudflare.settings]
+always_use_https = "on"
+min_tls_version = "1.2"
+
+# Neither domain sends mail, so they say so (SPF -all, DMARC reject, null MX).
+[[cloudflare.records]]
+type = "TXT"
+name = "example.com"
+content = "v=spf1 -all"
+
+[[cloudflare.records]]
+type = "TXT"
+name = "_dmarc.example.com"
+content = "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s"
+
+[[cloudflare.records]]
+type = "MX"
+name = "example.com"
+content = "."
+priority = 0
+
+[[cloudflare.records]]
+type = "TXT"
+name = "example.org"
+content = "v=spf1 -all"
+
+[[cloudflare.records]]
+type = "TXT"
+name = "_dmarc.example.org"
+content = "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s"
+
+[[cloudflare.records]]
+type = "MX"
+name = "example.org"
+content = "."
+priority = 0
+
+# Things that moved elsewhere. hostctl removes them through a plan like any other change.
+[retired]
+# Tunnels whose connector no longer runs on the host itself.
+host_connectors = ["relay"]
+# Hand-made files on the host to keep absent.
+host_files = ["/etc/sudoers.d/relay-lxc"]
+
+# A user service that now runs inside a VM: stopped, disabled and its files deleted.
+[[retired.user_services]]
+user = "admin"
+unit = "relay-deploy-runner.service"
+paths = [
+  "/home/admin/actions-runner-relay",
+  "/home/admin/.config/relay-runner",
+  "/home/admin/.config/systemd/user/relay-deploy-runner.service",
+]
+
+# A compressed btrfs volume on the host (a sparse loop file). Grow-only.
+[volumes.archive]
+mount = "/srv/archive"
+size = "24GiB"
+owner = "admin"
+compression = "zstd:3"
+mode = "755"

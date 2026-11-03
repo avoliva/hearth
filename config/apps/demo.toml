@@ -1,0 +1,21 @@
+# The smallest app: a static page in its own VM, published at demo.example.com.
+# The stack ships the committed tree of ~/src/demo and runs its compose file.
+
+[vms.demo]
+cpus = 1
+memory = "1GiB"
+disk = "8GiB"
+network = { name = "demo", ipv4 = "10.200.5.1/24" }
+address = "10.200.5.10"
+
+[stacks.demo]
+vm = "demo"
+sources = { demo = "~/src/demo" }
+compose_dir = "demo"
+
+[tunnels.demo]
+connector = "vm:demo"
+routes = { "demo.example.com" = "http://127.0.0.1:8080" }
+
+[verify]
+public = ["https://demo.example.com/healthz", "https://demo.example.com/"]

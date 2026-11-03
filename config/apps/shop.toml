@@ -1,0 +1,86 @@
+# An app with two environments, each in its own VM: staging (kept off until needed) and prod.
+# Prod extends staging and ships the `prod` branch; rolling services update without downtime.
+
+[vms.shop-staging]
+running = false
+cpus = 2
+memory = "3GiB"
+disk = "16GiB"
+network = { name = "sh-staging", ipv4 = "10.200.1.1/24" }
+address = "10.200.1.10"
+
+[vms.shop-prod]
+cpus = 2
+memory = "3GiB"
+disk = "16GiB"
+network = { name = "sh-prod", ipv4 = "10.200.2.1/24" }
+address = "10.200.2.10"
+
+[stacks.shop]
+vm = "shop-staging"
+sources = { shop-api = "~/src/shop-api", shop-web = "~/src/shop-web" }
+compose_dir = "shop-api/deploy"
+secrets = ["POSTGRES_PASSWORD", "APP_DB_PASSWORD", "SESSION_SECRET"]
+keep = ["shop-api/deploy/backup.env", "shop-api/deploy/tunnel.env"]
+from_example = { "shop-api/deploy/backup.env" = "shop-api/deploy/backup.env.example", "shop-api/deploy/tunnel.env" = "shop-api/deploy/tunnel.env.example" }
+dirs = { "shop-api/deploy/backups" = { owner = 70, mode = "0700" } }
+token_file = "shop-api/deploy/tunnel.env"
+jobs = ["migrate"]
+rolling = ["api", "caddy"]
+
+[stacks.shop.env]
+COMPOSE_PROFILES = "tunnel"
+DOMAIN = "shop.example.com"
+X_ROBOTS_TAG = "noindex, nofollow"
+POSTGRES_USER = "shop"
+POSTGRES_DB = "shop"
+DATABASE_URL = "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+PUBLIC_URL = "https://${DOMAIN}"
+LOG_LEVEL = "INFO"
+
+[stacks.shop-prod]
+extends = "shop"
+vm = "shop-prod"
+ref = "prod"
+
+[stacks.shop-prod.env]
+DOMAIN = "example.org"
+X_ROBOTS_TAG = "noindex, nofollow"
+
+[tunnels.shop]
+connector = "stack:shop"
+routes = { "shop.example.com" = "http://caddy:80" }
+
+[tunnels.shop-prod]
+connector = "stack:shop-prod"
+routes = { "example.org" = "http://caddy:80", "www.example.org" = "http://caddy:80" }
+
+[[tunnels.shop.paths]]
+hostname = "shop.example.com"
+path = "^/api/(docs|redoc|openapi\\.json)(/|$)"
+service = "http_status:404"
+
+[[tunnels.shop-prod.paths]]
+hostname = "example.org"
+path = "^/api/(docs|redoc|openapi\\.json)(/|$)"
+service = "http_status:404"
+
+[[tunnels.shop-prod.paths]]
+hostname = "www.example.org"
+path = "^/api/(docs|redoc|openapi\\.json)(/|$)"
+service = "http_status:404"
+
+[redirects]
+"www.example.org" = "https://example.org"
+
+[verify]
+not_found = [
+  "https://example.org/api/docs",
+  "https://example.org/api/redoc",
+  "https://example.org/api/openapi.json",
+  "https://shop.example.com/api/docs",
+]
+public = [
+  "https://shop.example.com/api/health",
+  "https://example.org/api/health",
+]

@@ -1,0 +1,39 @@
+[project]
+name = "hearth"
+version = "0.1.0"
+description = "Self-hosted app platform as code: one LXD VM per app, Cloudflare Tunnels, plan then apply"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+hostctl = "hostctl.cli:main"
+
+[tool.uv.build-backend]
+module-name = "hostctl"
+
+[build-system]
+requires = ["uv_build>=0.9,<0.14"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+markers = [  "integration: in-memory apply-then-replan checks of simple components"]
+filterwarnings = ["error"]
+xfail_strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "PTH"]
+
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+python_version = "3.12"

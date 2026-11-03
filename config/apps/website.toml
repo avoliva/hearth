@@ -1,0 +1,27 @@
+# A website on the zone apex, with www redirected to it at Cloudflare.
+
+[vms.website]
+cpus = 1
+memory = "1GiB"
+disk = "8GiB"
+network = { name = "website", ipv4 = "10.200.6.1/24" }
+address = "10.200.6.10"
+
+[stacks.website]
+vm = "website"
+sources = { homepage = "~/src/homepage" }
+compose_dir = "homepage/deploy"
+
+[tunnels.website]
+connector = "vm:website"
+routes = { "example.com" = "http://127.0.0.1:8080", "www.example.com" = "http://127.0.0.1:8080" }
+
+[redirects]
+"www.example.com" = "https://example.com"
+
+[verify]
+public = [
+  "https://example.com/healthz",
+  "https://example.com/",
+  "https://example.com/assets/css/main.css",
+]

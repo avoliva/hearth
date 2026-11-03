@@ -1,0 +1,37 @@
+# An app without a stack: hostctl gives it a VM, packages and a tunnel connector, and the
+# app deploys itself inside the VM. Path rules hide its API docs at the edge.
+
+[vms.relay]
+cpus = 16
+memory = "24GiB"
+disk = "64GiB"
+network = { name = "relay", ipv4 = "10.200.3.1/24" }
+address = "10.200.3.10"
+packages = ["docker.io", "docker-buildx", "git", "gh"]
+exposed_ports = [8420, 8421]
+
+[tunnels.relay]
+connector = "vm:relay"
+routes = { "relay.example.com" = "http://127.0.0.1:8420", "relay-preview.example.com" = "http://127.0.0.1:8420" }
+
+[[tunnels.relay.paths]]
+hostname = "relay.example.com"
+path = "^/(docs|redoc|openapi\\.json)"
+service = "http_status:404"
+
+[[tunnels.relay.paths]]
+hostname = "relay.example.com"
+path = "^/($|get/)"
+service = "http://127.0.0.1:8421"
+
+[verify]
+not_found = [
+  "https://relay.example.com/docs",
+  "https://relay.example.com/openapi.json",
+]
+public = [
+  "https://relay.example.com/healthz",
+  "https://relay.example.com/",
+  "https://relay.example.com/get/install.sh",
+  "https://relay-preview.example.com/__relay/health",
+]

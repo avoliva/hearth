@@ -1,0 +1,37 @@
+# A GPU container (not a VM) running Ollama behind an API-key gate, published as llm.example.com.
+# Containers are for the operator's own services; app VMs cannot use a GPU.
+
+[vms.llm]
+kind = "container"
+project = "default"
+running = false
+gpu = true
+nesting = true
+cpus = 32
+cpu_pin = "0-31"
+memory = "32GiB"
+disk = "48GiB"
+network = { name = "llm", ipv4 = "10.200.4.1/24" }
+address = "10.200.4.10"
+packages = ["docker.io", "caddy", "zstd"]
+exposed_ports = [8080]
+drop_caches_every = ""
+
+[ollama.llm]
+version = "0.30.10"
+url = "https://github.com/ollama/ollama/releases/download/v0.30.10/ollama-linux-amd64.tar.zst"
+sha256 = "046d8f28e58d58477a49558d8d1bcb2e81ca8b287f93c44b12ff919c10d178dd"
+models = ["qwen3.6:35b-a3b-coding"]
+env = { OLLAMA_CONTEXT_LENGTH = "131072", OLLAMA_FLASH_ATTENTION = "1", OLLAMA_KV_CACHE_TYPE = "q8_0", OLLAMA_NUM_PARALLEL = "1", OLLAMA_MAX_LOADED_MODELS = "1", OLLAMA_KEEP_ALIVE = "10m" }
+
+[gates.llm]
+port = 8080
+upstream = "127.0.0.1:11434"
+paths = ["/v1/*", "/api/chat", "/api/generate", "/api/embed", "/api/embeddings", "/api/tags", "/api/show", "/api/ps", "/api/version"]
+
+[tunnels.llm]
+connector = "vm:llm"
+routes = { "llm.example.com" = "http://127.0.0.1:8080" }
+
+[verify]
+public = ["https://llm.example.com/healthz"]
