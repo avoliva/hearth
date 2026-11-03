@@ -1,10 +1,9 @@
 """An API-key gate in front of an HTTP service inside an instance.
 
 Caddy (Ubuntu's package) listens on the instance's `port`. A request passes only with the
-instance's key, as `Authorization: Bearer <key>` (OpenAI-style clients)
-or `X-Api-Key: <key>`, and only to the
-paths config lists; the key headers are dropped before the request goes on. The health
-path answers without a key, so `verify` can check the public route.
+instance's key, as `Authorization: Bearer <key>` or `X-Api-Key: <key>`, and only to the paths
+config lists; the key headers are dropped before the request goes on. The health path answers
+without a key, so `verify` can check the public route.
 
 The key is generated inside the instance (`openssl rand`) into GATE_ENV and never appears
 in a plan. Read it with `sudo lxc exec <instance> -- cat /etc/hostctl/gate.env`.

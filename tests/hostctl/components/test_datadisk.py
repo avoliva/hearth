@@ -177,7 +177,7 @@ def test_verify_checks_both_mounts_by_uuid(site: Site) -> None:
 @pytest.mark.parametrize(
     ("table", "error"),
     [
-        ({"uuid": "DDCCC9F1-F7EB-434C-8B97-F6ABBFC1708C", "mount": "/srv/data"}, "uuid"),
+        ({"uuid": "ABCDEF00-0000-4000-8000-000000000000", "mount": "/srv/data"}, "uuid"),
         ({"uuid": UUID, "mount": "/var/data"}, "mount"),
         ({"uuid": UUID, "mount": "/srv/data", "lxd_disks": "yes"}, "lxd_disks"),
     ],
