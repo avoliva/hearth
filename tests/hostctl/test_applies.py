@@ -10,7 +10,7 @@ from pathlib import Path
 from hostctl import applies
 from hostctl.applies import Checkout
 
-HERE = Checkout("/w/hearth", "HEAD", "abc1234", True, None)
+HERE = Checkout("/w/one", "HEAD", "abc1234", True, None)
 
 
 def test_a_record_is_one_line_of_json_with_every_fact() -> None:
@@ -18,7 +18,7 @@ def test_a_record_is_one_line_of_json_with_every_fact() -> None:
     assert line.endswith("\n") and line.count("\n") == 1
     got = json.loads(line)
     assert got == {
-        "started": 10.0, "finished": 12.5, "who": "ops@laptop", "path": "/w/hearth", "branch": "HEAD",
+        "started": 10.0, "finished": 12.5, "who": "ops@laptop", "path": "/w/one", "branch": "HEAD",
         "commit": "abc1234", "dirty": True, "on_main": None, "only": "", "components": ["a", "b"],
         "result": "differs",
     }  # fmt: skip
